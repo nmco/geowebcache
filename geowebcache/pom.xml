@@ -634,6 +634,7 @@
     <module>ve</module>
     <module>wms</module>
     <module>wmts</module>
+    <module>sqlite</module>
     <module>web</module>
     <module>diskquota</module>
     <module>arcgiscache</module>
