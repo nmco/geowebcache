@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -57,9 +58,16 @@ public class WMTSGetCapabilities {
     private GridSetBroker gsb;
     
     private String baseUrl;
-    
+
+    private final List<WMTSExtension> extensions;
+
     protected WMTSGetCapabilities(TileLayerDispatcher tld, GridSetBroker gsb, HttpServletRequest servReq, String baseUrl,
-            String contextPath, URLMangler urlMangler) {
+                                  String contextPath, URLMangler urlMangler) {
+        this(tld, gsb, servReq, baseUrl, contextPath, urlMangler, Collections.emptyList());
+    }
+
+    protected WMTSGetCapabilities(TileLayerDispatcher tld, GridSetBroker gsb, HttpServletRequest servReq, String baseUrl,
+            String contextPath, URLMangler urlMangler, List<WMTSExtension> extensions) {
         this.tld = tld;
         this.gsb = gsb;
 
@@ -70,7 +78,8 @@ public class WMTSGetCapabilities {
         } else {
             this.baseUrl = urlMangler.buildURL(baseUrl, contextPath, WMTSService.SERVICE_PATH);
         }
-        
+
+        this.extensions = extensions;
     }
     
     protected void writeResponse(HttpServletResponse response, RuntimeStats stats) {
@@ -106,7 +115,21 @@ public class WMTSGetCapabilities {
             xml.attribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
             xml.attribute("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance");
             xml.attribute("xmlns:gml", "http://www.opengis.net/gml");
-            xml.attribute("xsi:schemaLocation", "http://www.opengis.net/wmts/1.0 http://schemas.opengis.net/wmts/1.0/wmtsGetCapabilities_response.xsd");
+            // allow extensions to register their names spaces
+            for(WMTSExtension extension : extensions) {
+                extension.registerNamespaces(xml);
+            }
+            StringBuilder schemasLocations = new StringBuilder("http://www.opengis.net/wmts/1.0 ");
+            schemasLocations.append("http://schemas.opengis.net/wmts/1.0/wmtsGetCapabilities_response.xsd ");
+            // allow extensions to register their schemas locations
+            for(WMTSExtension extension : extensions) {
+                for(String schemaLocation : extension.getSchemaLocations()) {
+                    schemasLocations.append(schemaLocation).append(" ");
+                }
+            }
+            schemasLocations.delete(schemasLocations.length() -1 , schemasLocations.length());
+            // add schemas locations
+            xml.attribute("xsi:schemaLocation", schemasLocations.toString());
             xml.attribute("version", "1.0.0");
             // There were some contradictions in the draft schema, haven't checked whether they've fixed those
             //str.append("xsi:schemaLocation=\"http://www.opengis.net/wmts/1.0 http://geowebcache.org/schema/opengis/wmts/1.0.0/wmtsGetCapabilities_response.xsd\"\n"); 
@@ -114,6 +137,12 @@ public class WMTSGetCapabilities {
             serviceIdentification(xml);
             serviceProvider(xml);
             operationsMetadata(xml);
+
+            // allow extension to inject their own metadata
+            for(WMTSExtension extension : extensions) {
+                extension.encodedMetadata(xml);
+            }
+
             contents(xml);
             xml.indentElement("ServiceMetadataURL")
                 .attribute("xlink:href", baseUrl+"?REQUEST=getcapabilities&VERSION=1.0.0")

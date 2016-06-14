@@ -18,6 +18,7 @@
 package org.geowebcache.service.wmts;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -42,8 +43,13 @@ import org.geowebcache.storage.StorageBroker;
 import org.geowebcache.util.NullURLMangler;
 import org.geowebcache.util.ServletUtils;
 import org.geowebcache.util.URLMangler;
+import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
 
 public class WMTSService extends Service {
+
     public static final String SERVICE_WMTS = "wmts";
     static final String SERVICE_PATH = "/"+GeoWebCacheDispatcher.TYPE_SERVICE+"/"+SERVICE_WMTS;
 
@@ -64,6 +70,9 @@ public class WMTSService extends Service {
     private URLMangler urlMangler = new NullURLMangler();
     
     private GeoWebCacheDispatcher controller = null;
+
+    @Autowired
+    private List<WMTSExtension> extensions;
 
     /**
      * Protected no-argument constructor to allow run-time instrumentation

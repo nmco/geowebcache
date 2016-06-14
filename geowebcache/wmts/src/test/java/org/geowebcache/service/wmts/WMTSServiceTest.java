@@ -11,6 +11,7 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.Matchers.hasEntry;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -37,6 +38,7 @@ import org.geowebcache.grid.GridSet;
 import org.geowebcache.grid.GridSetBroker;
 import org.geowebcache.grid.GridSubset;
 import org.geowebcache.grid.SRS;
+import org.geowebcache.io.XMLBuilder;
 import org.geowebcache.layer.TileLayer;
 import org.geowebcache.layer.TileLayerDispatcher;
 import org.geowebcache.mime.MimeType;
@@ -203,6 +205,59 @@ public class WMTSServiceTest extends TestCase {
         assertEquals("1", xpath.evaluate("count(//wmts:Contents/wmts:Layer[ows:Identifier='advertised-name'])", doc));
         assertEquals("2", xpath.evaluate("count(//wmts:Contents/wmts:Layer/wmts:Style/ows:Identifier)", doc));
         assertEquals("", xpath.evaluate("//wmts:Contents/wmts:Layer/wmts:Style/ows:Identifier", doc));
+    }
+
+    public void testGetCapWithExtensions() throws Exception {
+        GeoWebCacheDispatcher gwcd = mock(GeoWebCacheDispatcher.class);
+        when(gwcd.getServletPrefix()).thenReturn(null);
+        service = new WMTSService(sb, tld, null , mock(RuntimeStats.class));
+        @SuppressWarnings("unchecked")
+        Map<String, String[]> kvp = new CaseInsensitiveMap();
+        kvp.put("service", new String[]{"WMTS"});
+        kvp.put("version", new String[]{"1.0.0"});
+        kvp.put("request", new String[]{"GetCapabilities"});
+        HttpServletRequest req = mock(HttpServletRequest.class);
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        when(req.getCharacterEncoding()).thenReturn("UTF-8");
+        when(req.getParameterMap()).thenReturn(kvp);
+        when(tld.getLayerList()).thenReturn(Collections.EMPTY_LIST);
+        Conveyor conv = service.getConveyor(req, resp);
+        assertNotNull(conv);
+        assertEquals(Conveyor.RequestHandler.SERVICE,conv.reqHandler);
+        WMTSGetCapabilities wmsCap = new WMTSGetCapabilities(tld,gridsetBroker, conv.servletReq,"http://localhost:8080", "/service/wms",
+                new NullURLMangler(), Collections.singletonList(new WMTSExtension() {
+            @Override
+            public String[] getSchemaLocations() {
+                return new String[]{"name-space schema-location"};
+            }
+
+            @Override
+            public void registerNamespaces(XMLBuilder xml) throws IOException {
+                xml.attribute("xmlns:custom", "custom");
+            }
+
+            @Override
+            public void encodedMetadata(XMLBuilder xml) throws IOException {
+                xml.startElement("custom-metadata");
+                xml.endElement("custom-metadata");
+            }
+        }));
+        wmsCap.writeResponse(conv.servletResp,mock(RuntimeStats.class));
+        assertTrue(resp.containsHeader("content-disposition"));
+        assertEquals("inline;filename=wmts-getcapabilities.xml", resp.getHeader("content-disposition"));
+        String result = resp.getContentAsString();
+        assertTrue(result.contains("xmlns:custom=\"custom\""));
+        assertTrue(result.contains("name-space schema-location"));
+
+        Document doc = XMLUnit.buildTestDocument(result);
+        Map<String, String> namespaces = new HashMap<String, String>();
+        namespaces.put("xlink", "http://www.w3.org/1999/xlink");
+        namespaces.put("xsi", "http://www.w3.org/2001/XMLSchema-instance");
+        namespaces.put("ows", "http://www.opengis.net/ows/1.1");
+        namespaces.put("wmts", "http://www.opengis.net/wmts/1.0");
+        XMLUnit.setXpathNamespaceContext(new SimpleNamespaceContext(namespaces));
+        XpathEngine xpath = XMLUnit.newXpathEngine();
+        assertEquals("1", xpath.evaluate("count(//wmts:custom-metadata)", doc));
     }
     
     public void testGetCapOneWGS84BBox() throws Exception {
