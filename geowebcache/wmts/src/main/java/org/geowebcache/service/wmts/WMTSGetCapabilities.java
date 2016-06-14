@@ -257,14 +257,14 @@ public class WMTSGetCapabilities {
         LayerMetaInformation layerMeta = layer.getMetaInformation();
 
         if (layerMeta == null) {
-            appendTag(xml, "ows:Title", layer.getName(), null);
+            appendTag(xml, "ows:Title", layer.getAdvertisingName(), null);
         } else {
             appendTag(xml, "ows:Title", layerMeta.getTitle(), null);
             appendTag(xml, "ows:Abstract", layerMeta.getDescription(), null);
         }
 
         layerWGS84BoundingBox(xml, layer);
-        appendTag(xml, "ows:Identifier", layer.getName(), null);
+        appendTag(xml, "ows:Identifier", layer.getAdvertisingName(), null);
         
         // We need the filters for styles and dimensions
         List<ParameterFilter> filters = layer.getParameterFilters();
