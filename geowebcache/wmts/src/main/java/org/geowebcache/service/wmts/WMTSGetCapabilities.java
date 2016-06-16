@@ -141,15 +141,12 @@ public class WMTSGetCapabilities {
             xml.attribute("version", "1.0.0");
             // There were some contradictions in the draft schema, haven't checked whether they've fixed those
             //str.append("xsi:schemaLocation=\"http://www.opengis.net/wmts/1.0 http://geowebcache.org/schema/opengis/wmts/1.0.0/wmtsGetCapabilities_response.xsd\"\n"); 
-            
-            serviceIdentification(xml);
-            serviceProvider(xml);
-            operationsMetadata(xml);
 
-            // allow extension to inject their own metadata
-            for(WMTSExtension extension : extensions) {
-                extension.encodedMetadata(xml);
-            }
+            ServiceInformation serviceInformation = getServiceInformation();
+
+            serviceIdentification(xml, serviceInformation);
+            serviceProvider(xml, serviceInformation);
+            operationsMetadata(xml);
 
             contents(xml);
             xml.indentElement("ServiceMetadataURL")
@@ -165,9 +162,44 @@ public class WMTSGetCapabilities {
         }
     }
 
-    private void serviceIdentification(XMLBuilder xml) throws IOException {
+    private ServiceInformation getServiceInformation() {
         ServiceInformation servInfo = tld.getServiceInformation();
-        
+        for (WMTSExtension extension : extensions) {
+            ServiceInformation serviceInformation = extension.getServiceInformation();
+            if (serviceInformation != null) {
+                if (servInfo == null) {
+                    servInfo = new ServiceInformation();
+                }
+                if (serviceInformation.getTitle() != null) {
+                    servInfo.setTitle(serviceInformation.getTitle());
+                }
+                if (serviceInformation.getDescription() != null) {
+                    servInfo.setDescription(serviceInformation.getDescription());
+                }
+                if (serviceInformation.getKeywords() != null) {
+                    servInfo.getKeywords().addAll(serviceInformation.getKeywords());
+                }
+                if (serviceInformation.getServiceProvider() != null) {
+                    servInfo.setServiceProvider(serviceInformation.getServiceProvider());
+                }
+                if (serviceInformation.getFees() != null) {
+                    servInfo.setFees(serviceInformation.getFees());
+                }
+                if (serviceInformation.getAccessConstraints() != null) {
+                    servInfo.setAccessConstraints(serviceInformation.getAccessConstraints());
+                }
+                if (serviceInformation.getProviderName() != null) {
+                    servInfo.setProviderName(serviceInformation.getProviderName());
+                }
+                if (serviceInformation.getProviderSite() != null) {
+                    servInfo.setProviderSite(serviceInformation.getProviderSite());
+                }
+            }
+        }
+        return servInfo;
+    }
+
+    private void serviceIdentification(XMLBuilder xml, ServiceInformation servInfo) throws IOException {
         xml.indentElement("ows:ServiceIdentification");
         
         if (servInfo != null) {
@@ -196,8 +228,7 @@ public class WMTSGetCapabilities {
         xml.endElement("ows:ServiceIdentification");
     }
     
-    private void serviceProvider(XMLBuilder xml) throws IOException {
-        ServiceInformation servInfo = tld.getServiceInformation();
+    private void serviceProvider(XMLBuilder xml, ServiceInformation servInfo) throws IOException {
         ServiceProvider servProv = null;
         if(servInfo != null) {
             servProv = servInfo.getServiceProvider();
@@ -253,6 +284,10 @@ public class WMTSGetCapabilities {
         operation(xml, "GetCapabilities", baseUrl);
         operation(xml, "GetTile", baseUrl);
         operation(xml, "GetFeatureInfo", baseUrl);
+        // allow extension to inject their own metadata
+        for(WMTSExtension extension : extensions) {
+            extension.encodedMetadata(xml);
+        }
         xml.endElement("ows:OperationsMetadata");
     }
         
@@ -436,11 +471,8 @@ public class WMTSGetCapabilities {
         xml.indentElement("LegendURL");
         xml.attribute("width", String.valueOf(legendInfo.width));
         xml.attribute("height", String.valueOf(legendInfo.height));
-        xml.simpleElement("Format", legendInfo.format, true);
-        xml.indentElement("OnlineResource");
-        xml.attribute("xlink:type", "simple");
+        xml.attribute("format", legendInfo.format);
         xml.attribute("xlink:href", legendInfo.legendUrl);
-        xml.endElement("OnlineResource");
         xml.endElement("LegendURL");
     }
      

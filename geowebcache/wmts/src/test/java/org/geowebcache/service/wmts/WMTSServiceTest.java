@@ -30,6 +30,7 @@ import org.custommonkey.xmlunit.XpathEngine;
 import org.custommonkey.xmlunit.Validator;
 import org.geowebcache.GeoWebCacheDispatcher;
 import org.geowebcache.config.XMLGridSubset;
+import org.geowebcache.config.meta.ServiceInformation;
 import org.geowebcache.conveyor.Conveyor;
 import org.geowebcache.conveyor.ConveyorTile;
 import org.geowebcache.filter.parameters.ParameterFilter;
@@ -240,6 +241,13 @@ public class WMTSServiceTest extends TestCase {
             public void encodedMetadata(XMLBuilder xml) throws IOException {
                 xml.startElement("custom-metadata");
                 xml.endElement("custom-metadata");
+            }
+
+            @Override
+            public ServiceInformation getServiceInformation() {
+                ServiceInformation serviceInformation = new ServiceInformation();
+                serviceInformation.getKeywords().add("custom-keyword");
+                return new ServiceInformation();
             }
         }));
         wmsCap.writeResponse(conv.servletResp,mock(RuntimeStats.class));

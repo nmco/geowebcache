@@ -18,6 +18,7 @@
 package org.geowebcache.service.wmts;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,8 +73,8 @@ public class WMTSService extends Service  {
     
     private GeoWebCacheDispatcher controller = null;
 
-    @Autowired
-    private Collection<WMTSExtension> extensions;
+    @Autowired(required = false)
+    private Collection<WMTSExtension> extensions = Collections.EMPTY_LIST;
 
     /**
      * Protected no-argument constructor to allow run-time instrumentation
