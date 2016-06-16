@@ -21,9 +21,12 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.logging.Level;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -44,10 +47,15 @@ import org.geowebcache.io.XMLBuilder;
 import org.geowebcache.layer.TileLayer;
 import org.geowebcache.layer.TileLayerDispatcher;
 import org.geowebcache.layer.meta.LayerMetaInformation;
+import org.geowebcache.layer.meta.MetadataURL;
 import org.geowebcache.mime.MimeType;
 import org.geowebcache.stats.RuntimeStats;
 import org.geowebcache.util.ServletUtils;
 import org.geowebcache.util.URLMangler;
+import org.springframework.beans.BeansException;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
+import org.xml.sax.helpers.AttributesImpl;
 
 public class WMTSGetCapabilities {
     
@@ -59,7 +67,7 @@ public class WMTSGetCapabilities {
     
     private String baseUrl;
 
-    private final List<WMTSExtension> extensions;
+    private final Collection<WMTSExtension> extensions;
 
     protected WMTSGetCapabilities(TileLayerDispatcher tld, GridSetBroker gsb, HttpServletRequest servReq, String baseUrl,
                                   String contextPath, URLMangler urlMangler) {
@@ -67,7 +75,7 @@ public class WMTSGetCapabilities {
     }
 
     protected WMTSGetCapabilities(TileLayerDispatcher tld, GridSetBroker gsb, HttpServletRequest servReq, String baseUrl,
-            String contextPath, URLMangler urlMangler, List<WMTSExtension> extensions) {
+            String contextPath, URLMangler urlMangler, Collection<WMTSExtension> extensions) {
         this.tld = tld;
         this.gsb = gsb;
 
@@ -293,6 +301,21 @@ public class WMTSGetCapabilities {
         }
 
         layerWGS84BoundingBox(xml, layer);
+
+         if (layer.getMetadataURLs() != null) {
+             for (MetadataURL metadataURL : layer.getMetadataURLs()) {
+                 xml.indentElement("MetadataURL");
+                 xml.attribute("type", metadataURL.getType());
+                 xml.simpleElement("Format", metadataURL.getFormat(), true);
+                 xml.indentElement("OnlineResource")
+                         .attribute("xmlns:xlink", "http://www.w3.org/1999/xlink")
+                         .attribute("xlink:type", "simple")
+                         .attribute("xlink:href", metadataURL.getUrl().toString())
+                         .endElement();
+                 xml.endElement();
+             }
+         }
+
         appendTag(xml, "ows:Identifier", layer.getAdvertisingName(), null);
         
         // We need the filters for styles and dimensions
@@ -352,14 +375,16 @@ public class WMTSGetCapabilities {
      
      private void layerStyles(XMLBuilder xml, TileLayer layer, List<ParameterFilter> filters) throws IOException {
          String defStyle = layer.getStyles();
+         Map<String, TileLayer.LegendInfo> legendsInfo = layer.getLegendsInfo();
          if(filters == null) {
              xml.indentElement("Style");
              xml.attribute("isDefault", "true");
              if(defStyle == null) {
                  xml.simpleElement("ows:Identifier", "", true);
              } else {
-                 xml.simpleElement("ows:Identifier", "TileLayer.encodeDimensionValue(defStyle)", true);
+                 xml.simpleElement("ows:Identifier", TileLayer.encodeDimensionValue(defStyle), true);
              }
+             encodeStyleLegenGraphic(xml, legendsInfo.get(defStyle));
              xml.endElement("Style");
          } else {
              ParameterFilter stylesFilter = null;
@@ -391,6 +416,7 @@ public class WMTSGetCapabilities {
                          xml.attribute("isDefault", "true");
                      }
                      xml.simpleElement("ows:Identifier", TileLayer.encodeDimensionValue(value), true);
+                     encodeStyleLegenGraphic(xml, legendsInfo.get(value));
                      xml.endElement();
                  }
              } else {
@@ -402,6 +428,21 @@ public class WMTSGetCapabilities {
              }
          }
      }
+
+    private void encodeStyleLegenGraphic(XMLBuilder xml, TileLayer.LegendInfo legendInfo) throws IOException {
+        if (legendInfo == null) {
+            return;
+        }
+        xml.indentElement("LegendURL");
+        xml.attribute("width", String.valueOf(legendInfo.width));
+        xml.attribute("height", String.valueOf(legendInfo.height));
+        xml.simpleElement("Format", legendInfo.format, true);
+        xml.indentElement("OnlineResource");
+        xml.attribute("xlink:type", "simple");
+        xml.attribute("xlink:href", legendInfo.legendUrl);
+        xml.endElement("OnlineResource");
+        xml.endElement("LegendURL");
+    }
      
      private void layerFormats(XMLBuilder xml, TileLayer layer) throws IOException {
          Iterator<MimeType> mimeIter = layer.getMimeTypes().iterator();

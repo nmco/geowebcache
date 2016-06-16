@@ -17,6 +17,7 @@
  */
 package org.geowebcache.service.wmts;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,7 +49,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 
-public class WMTSService extends Service {
+public class WMTSService extends Service  {
 
     public static final String SERVICE_WMTS = "wmts";
     static final String SERVICE_PATH = "/"+GeoWebCacheDispatcher.TYPE_SERVICE+"/"+SERVICE_WMTS;
@@ -72,7 +73,7 @@ public class WMTSService extends Service {
     private GeoWebCacheDispatcher controller = null;
 
     @Autowired
-    private List<WMTSExtension> extensions;
+    private Collection<WMTSExtension> extensions;
 
     /**
      * Protected no-argument constructor to allow run-time instrumentation
@@ -290,7 +291,7 @@ public class WMTSService extends Service {
 
         if (tile.getHint() != null) {
             if (tile.getHint().equals("getcapabilities")) {
-                WMTSGetCapabilities wmsGC = new WMTSGetCapabilities(tld, gsb, tile.servletReq, servletBase, context, urlMangler);
+                WMTSGetCapabilities wmsGC = new WMTSGetCapabilities(tld, gsb, tile.servletReq, servletBase, context, urlMangler, extensions);
                 wmsGC.writeResponse(tile.servletResp, stats);
 
             } else if (tile.getHint().equals("getfeatureinfo")) {

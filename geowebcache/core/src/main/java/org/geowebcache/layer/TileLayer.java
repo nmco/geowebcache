@@ -249,6 +249,10 @@ public abstract class TileLayer {
      */
     public abstract String getStyles();
 
+    public Map<String, LegendInfo> getLegendsInfo() {
+        return Collections.EMPTY_MAP;
+    }
+
     /**
      * The size of a metatile in tiles.
      * 
@@ -690,4 +694,12 @@ public abstract class TileLayer {
         }
     }
 
+    public class LegendInfo {
+
+        public String id;
+        public int width;
+        public int height;
+        public String format;
+        public String legendUrl;
+    }
 }
