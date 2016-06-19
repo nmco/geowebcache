@@ -63,7 +63,8 @@ public class XMLConfigurationConstructorsTest {
         expect(appContext.getServletContext()).andStubReturn(svltContext);
         expect(svltContext.getInitParameter((String)anyObject())).andStubReturn(null);
         expect(storageFinder.getDefaultPath()).andStubReturn(cacheDir.getCanonicalPath());
-        expect(appContext.getBeansOfType(org.geowebcache.config.XMLConfigurationProvider.class)).andReturn(Collections.emptyMap());
+        expect(appContext.getBeansOfType(org.geowebcache.config.XMLConfigurationProvider.class))
+                    .andReturn(Collections.<String, XMLConfigurationProvider>emptyMap());
         expect(svltContext.getRealPath("")).andStubReturn(temp.getRoot().getCanonicalPath());
 
         replay(provider, appContext, svltContext, storageFinder);

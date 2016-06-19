@@ -11,9 +11,9 @@ import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.Matchers.hasEntry;
 
 import java.io.IOException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -36,6 +36,7 @@ import org.geowebcache.config.meta.ServiceProvider;
 import org.geowebcache.conveyor.Conveyor;
 import org.geowebcache.conveyor.ConveyorTile;
 import org.geowebcache.filter.parameters.ParameterFilter;
+import org.geowebcache.filter.parameters.StringParameterFilter;
 import org.geowebcache.grid.BoundingBox;
 import org.geowebcache.grid.GridSet;
 import org.geowebcache.grid.GridSetBroker;
@@ -44,20 +45,13 @@ import org.geowebcache.grid.SRS;
 import org.geowebcache.io.XMLBuilder;
 import org.geowebcache.layer.TileLayer;
 import org.geowebcache.layer.TileLayerDispatcher;
-import org.geowebcache.layer.meta.ContactInformation;
+import org.geowebcache.layer.meta.MetadataURL;
 import org.geowebcache.mime.MimeType;
 import org.geowebcache.stats.RuntimeStats;
 import org.geowebcache.storage.StorageBroker;
 import org.geowebcache.util.NullURLMangler;
-import org.hamcrest.Matcher;
-import org.hamcrest.Matchers;
 import org.w3c.dom.Document;
 import com.mockrunner.mock.web.MockHttpServletResponse;
-import org.junit.runner.RunWith;
-import org.springframework.mock.web.MockHttpServletResponse;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.w3c.dom.Document;
 
 public class WMTSServiceTest extends TestCase {
 
@@ -135,7 +129,7 @@ public class WMTSServiceTest extends TestCase {
     }
 
     public void testGetCap() throws Exception {
-    
+
         GeoWebCacheDispatcher gwcd = mock(GeoWebCacheDispatcher.class);
         when(gwcd.getServletPrefix()).thenReturn(null);
         
@@ -160,6 +154,25 @@ public class WMTSServiceTest extends TestCase {
             TileLayer tileLayer = mockTileLayer("mockLayer", gridSetNames, Collections.<ParameterFilter>emptyList());
             TileLayer tileLayerUn = mockTileLayer("mockLayerUnadv", gridSetNames, Collections.<ParameterFilter>emptyList(), false);
             when(tld.getLayerList()).thenReturn(Arrays.asList(tileLayer, tileLayerUn));
+
+            // add styles
+            StringParameterFilter styles = new StringParameterFilter();
+            styles.setKey("STYLES");
+            styles.setValues(Arrays.asList("style-a", "style-b"));
+            when(tileLayer.getParameterFilters()).thenReturn(Collections.<ParameterFilter>singletonList(styles));
+
+            // add legend info for style-b
+            TileLayer.LegendInfo legendInfo = TileLayer.createLegendInfo();
+            legendInfo.id = "styla-a-legend";
+            legendInfo.width = 125;
+            legendInfo.height = 130;
+            legendInfo.format = "image/png";
+            legendInfo.legendUrl = "https://some-url?some-parameter=value&another-parameter=value";
+            when(tileLayer.getLegendsInfo()).thenReturn(Collections.singletonMap("style-b", legendInfo));
+
+            // add some layer metadata
+            MetadataURL metadataURL = new MetadataURL("some-type", "some-format", new URL("http://localhost:8080/some-url"));
+            when(tileLayer.getMetadataURLs()).thenReturn(Collections.singletonList(metadataURL));
         }
     
         Conveyor conv = service.getConveyor(req, resp);
@@ -187,7 +200,7 @@ public class WMTSServiceTest extends TestCase {
         //validator.assertIsValid();
         
         Document doc = XMLUnit.buildTestDocument(result);
-        Map<String, String> namespaces = new HashMap<String, String>();
+        Map<String, String> namespaces = new HashMap<>();
         namespaces.put("xlink", "http://www.w3.org/1999/xlink");
         namespaces.put("xsi", "http://www.w3.org/2001/XMLSchema-instance");
         namespaces.put("ows", "http://www.opengis.net/ows/1.1");        
@@ -197,8 +210,16 @@ public class WMTSServiceTest extends TestCase {
         
         assertEquals("1", xpath.evaluate("count(//wmts:Contents/wmts:Layer)", doc));
         assertEquals("1", xpath.evaluate("count(//wmts:Contents/wmts:Layer[ows:Identifier='mockLayer'])", doc));
-        assertEquals("1", xpath.evaluate("count(//wmts:Contents/wmts:Layer/wmts:Style/ows:Identifier)", doc));
-        assertEquals("", xpath.evaluate("//wmts:Contents/wmts:Layer/wmts:Style/ows:Identifier", doc));
+        assertEquals("2", xpath.evaluate("count(//wmts:Contents/wmts:Layer/wmts:Style/ows:Identifier)", doc));
+        assertEquals("1", xpath.evaluate("count(//wmts:Contents/wmts:Layer/wmts:Style[ows:Identifier='style-a'])", doc));
+        // checking that style-b has the correct legend url
+        assertEquals("1", xpath.evaluate("count(//wmts:Contents/wmts:Layer/wmts:Style[ows:Identifier='style-b']/wmts:LegendURL" +
+                "[@width='125'][@height='130'][@format='image/png']" +
+                "[@xlink:href='https://some-url?some-parameter=value&another-parameter=value'])", doc));
+        // checking that the layer has an associated metadata URL
+        assertEquals("1", xpath.evaluate("count(//wmts:Contents/wmts:Layer/wmts:MetadataURL[@type='some-type'][wmts:Format='some-format'])", doc));
+        assertEquals("1", xpath.evaluate("count(//wmts:Contents/wmts:Layer/wmts:MetadataURL[@type='some-type']" +
+                "/wmts:OnlineResource[@xlink:href='http://localhost:8080/some-url'])", doc));
     }
 
     public void testGetCapWithExtensions() throws Exception {
@@ -220,6 +241,12 @@ public class WMTSServiceTest extends TestCase {
         assertEquals(Conveyor.RequestHandler.SERVICE, conv.reqHandler);
         List<WMTSExtension> extensions = new ArrayList<>();
         extensions.add(new WMTSExtension() {
+
+            @Override
+            public int getPriority() {
+                return 0;
+            }
+
             @Override
             public String[] getSchemaLocations() {
                 return new String[]{"name-space schema-location"};
@@ -262,7 +289,7 @@ public class WMTSServiceTest extends TestCase {
         wmsCap.writeResponse(conv.servletResp, mock(RuntimeStats.class));
         assertTrue(resp.containsHeader("content-disposition"));
         assertEquals("inline;filename=wmts-getcapabilities.xml", resp.getHeader("content-disposition"));
-        String result = resp.getContentAsString();
+        String result = resp.getOutputStreamContent();
         assertTrue(result.contains("xmlns:custom=\"custom\""));
         assertTrue(result.contains("name-space schema-location"));
 

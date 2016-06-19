@@ -138,16 +138,23 @@ public class GeoWebCacheExtensions implements ApplicationContextAware, Applicati
         // this extension type is priority aware
         List<Map.Entry<String, T>> beansEntries = new ArrayList<>(beans.entrySet());
         // sorting beans by their priority
-        Collections.sort(beansEntries, (extensionA, extensionB) -> {
-            GeoWebCacheExtensionPriority extensionPriorityA = ((Map.Entry<String, GeoWebCacheExtensionPriority>) extensionA).getValue();
-            GeoWebCacheExtensionPriority extensionPriorityB = ((Map.Entry<String, GeoWebCacheExtensionPriority>) extensionB).getValue();
-            if (extensionPriorityA.getPriority() < extensionPriorityB.getPriority()) {
-                return -1;
+        Collections.sort(beansEntries, new Comparator<Map.Entry<String, T>>() {
+            @Override
+            public int compare(Map.Entry<String, T> extensionA, Map.Entry<String, T> extensionB) {
+                GeoWebCacheExtensionPriority extensionPriorityA = ((Map.Entry<String, GeoWebCacheExtensionPriority>) extensionA).getValue();
+                GeoWebCacheExtensionPriority extensionPriorityB = ((Map.Entry<String, GeoWebCacheExtensionPriority>) extensionB).getValue();
+                if (extensionPriorityA.getPriority() < extensionPriorityB.getPriority()) {
+                    return -1;
+                }
+                return extensionPriorityA.getPriority() == extensionPriorityB.getPriority() ? 0 : 1;
             }
-            return extensionPriorityA.getPriority() == extensionPriorityB.getPriority() ? 0 : 1;
         });
         // returning only the beans names
-        return beansEntries.stream().map(Map.Entry::getKey).toArray(String[]::new);
+        ArrayList<String> beansKeys = new ArrayList<>();
+        for(Map.Entry<String, T> entry : beansEntries) {
+            beansKeys.add(entry.getKey());
+        }
+        return beansKeys.toArray(new String[beansKeys.size()]);
     }
 
     /**

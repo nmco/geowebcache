@@ -50,12 +50,4 @@ public interface WMTSExtension extends GeoWebCacheExtensionPriority {
      * Allows extensions to provide extra information about the service.
      */
     ServiceInformation getServiceInformation();
-
-    /**
-     * By default an extension will have the lowest priority.
-     */
-    @Override
-    default int getPriority() {
-        return GeoWebCacheExtensionPriority.LOWEST;
-    }
 }
