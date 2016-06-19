@@ -23,6 +23,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -43,6 +44,7 @@ import org.geowebcache.io.XMLBuilder;
 import org.geowebcache.layer.TileLayer;
 import org.geowebcache.layer.TileLayerDispatcher;
 import org.geowebcache.layer.meta.LayerMetaInformation;
+import org.geowebcache.layer.meta.MetadataURL;
 import org.geowebcache.mime.MimeType;
 import org.geowebcache.stats.RuntimeStats;
 import org.geowebcache.util.ServletUtils;
@@ -57,7 +59,7 @@ public class WMTSGetCapabilities {
     private GridSetBroker gsb;
     
     private String baseUrl;
-    
+
     protected WMTSGetCapabilities(TileLayerDispatcher tld, GridSetBroker gsb, HttpServletRequest servReq, String baseUrl,
             String contextPath, URLMangler urlMangler) {
         this.tld = tld;
@@ -70,7 +72,7 @@ public class WMTSGetCapabilities {
         } else {
             this.baseUrl = urlMangler.buildURL(baseUrl, contextPath, WMTSService.SERVICE_PATH);
         }
-        
+
     }
     
     protected void writeResponse(HttpServletResponse response, RuntimeStats stats) {
@@ -110,10 +112,11 @@ public class WMTSGetCapabilities {
             xml.attribute("version", "1.0.0");
             // There were some contradictions in the draft schema, haven't checked whether they've fixed those
             //str.append("xsi:schemaLocation=\"http://www.opengis.net/wmts/1.0 http://geowebcache.org/schema/opengis/wmts/1.0.0/wmtsGetCapabilities_response.xsd\"\n"); 
-            
+
             serviceIdentification(xml);
             serviceProvider(xml);
             operationsMetadata(xml);
+
             contents(xml);
             xml.indentElement("ServiceMetadataURL")
                 .attribute("xlink:href", baseUrl+"?REQUEST=getcapabilities&VERSION=1.0.0")
@@ -130,7 +133,7 @@ public class WMTSGetCapabilities {
 
     private void serviceIdentification(XMLBuilder xml) throws IOException {
         ServiceInformation servInfo = tld.getServiceInformation();
-        
+
         xml.indentElement("ows:ServiceIdentification");
         
         if (servInfo != null) {
@@ -264,7 +267,22 @@ public class WMTSGetCapabilities {
         }
 
         layerWGS84BoundingBox(xml, layer);
+
         appendTag(xml, "ows:Identifier", layer.getName(), null);
+
+        if (layer.getMetadataURLs() != null) {
+             for (MetadataURL metadataURL : layer.getMetadataURLs()) {
+                 xml.indentElement("MetadataURL");
+                 xml.attribute("type", metadataURL.getType());
+                 xml.simpleElement("Format", metadataURL.getFormat(), true);
+                 xml.indentElement("OnlineResource")
+                         .attribute("xmlns:xlink", "http://www.w3.org/1999/xlink")
+                         .attribute("xlink:type", "simple")
+                         .attribute("xlink:href", metadataURL.getUrl().toString())
+                         .endElement();
+                 xml.endElement();
+             }
+         }
         
         // We need the filters for styles and dimensions
         List<ParameterFilter> filters = layer.getParameterFilters();
@@ -323,14 +341,16 @@ public class WMTSGetCapabilities {
      
      private void layerStyles(XMLBuilder xml, TileLayer layer, List<ParameterFilter> filters) throws IOException {
          String defStyle = layer.getStyles();
+         Map<String, TileLayer.LegendInfo> legendsInfo = layer.getLegendsInfo();
          if(filters == null) {
              xml.indentElement("Style");
              xml.attribute("isDefault", "true");
              if(defStyle == null) {
                  xml.simpleElement("ows:Identifier", "", true);
              } else {
-                 xml.simpleElement("ows:Identifier", "TileLayer.encodeDimensionValue(defStyle)", true);
+                 xml.simpleElement("ows:Identifier", TileLayer.encodeDimensionValue(defStyle), true);
              }
+             encodeStyleLegenGraphic(xml, legendsInfo.get(defStyle));
              xml.endElement("Style");
          } else {
              ParameterFilter stylesFilter = null;
@@ -362,6 +382,7 @@ public class WMTSGetCapabilities {
                          xml.attribute("isDefault", "true");
                      }
                      xml.simpleElement("ows:Identifier", TileLayer.encodeDimensionValue(value), true);
+                     encodeStyleLegenGraphic(xml, legendsInfo.get(value));
                      xml.endElement();
                  }
              } else {
@@ -373,6 +394,18 @@ public class WMTSGetCapabilities {
              }
          }
      }
+
+    private void encodeStyleLegenGraphic(XMLBuilder xml, TileLayer.LegendInfo legendInfo) throws IOException {
+        if (legendInfo == null) {
+            return;
+        }
+        xml.indentElement("LegendURL");
+        xml.attribute("width", String.valueOf(legendInfo.width));
+        xml.attribute("height", String.valueOf(legendInfo.height));
+        xml.attribute("format", legendInfo.format);
+        xml.attribute("xlink:href", legendInfo.legendUrl);
+        xml.endElement("LegendURL");
+    }
      
      private void layerFormats(XMLBuilder xml, TileLayer layer) throws IOException {
          Iterator<MimeType> mimeIter = layer.getMimeTypes().iterator();
